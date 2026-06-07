@@ -43,7 +43,6 @@ const generateKahnsSteps = (nodes, edges) => {
     for (let v of adj[u]) {
       const edgeStr = `${u}-${v}`;
       
-      // Highlight the active edge being evaluated
       pushStep(`Evaluating edge ${u} → ${v}...`, u, edgeStr);
       
       inDegree[v]--;
@@ -67,27 +66,29 @@ const generateKahnsSteps = (nodes, edges) => {
   return steps;
 };
 
+// --- The 3-State DFS Implementation ---
 const generateDFSSteps = (nodes, edges) => {
   const steps = [];
   const adj = {};
   nodes.forEach(n => adj[n.id] = []);
   edges.forEach(e => adj[e.from].push(e.to));
 
-  const visited = {}; 
-  nodes.forEach(n => visited[n.id] = 'UNVISITED');
+  // 1. Initialize the State Tracker (UNVISITED, VISITING, VISITED)
+  const state = {}; 
+  nodes.forEach(n => state[n.id] = 'UNVISITED');
+  
   const result = [];
   const callStack = [];
   
-  // Distinct edge states for better visual learning
-  const treeEdges = [];     // Edges we successfully traversed
-  const skippedEdges = [];  // Edges to nodes already visited
-  const cycleEdges = [];    // Back-edges causing a cycle
+  const treeEdges = [];     
+  const skippedEdges = [];  
+  const cycleEdges = [];    
   let hasCycle = false;
 
   const pushStep = (msg, activeNode = null, activeEdge = null) => {
     steps.push({
       msg,
-      visited: { ...visited },
+      visited: { ...state }, // Pass the 3 states to the UI
       result: [...result],
       callStack: [...callStack],
       treeEdges: [...treeEdges],
@@ -98,48 +99,52 @@ const generateDFSSteps = (nodes, edges) => {
     });
   };
 
-  pushStep('Initialized all nodes as Unvisited.');
+  pushStep('Initialized all nodes as UNVISITED.');
 
   const dfs = (u) => {
     if (hasCycle) return;
     
-    visited[u] = 'VISITING';
+    // 2. Mark node as VISITING (in active call stack)
+    state[u] = 'VISITING';
     callStack.push(u);
-    pushStep(`Visiting Node ${u}. Marked as Visiting.`, u);
+    pushStep(`Visiting Node ${u}. Marked as VISITING (Added to active Call Stack).`, u);
 
     for (let v of adj[u]) {
       const edgeStr = `${u}-${v}`;
-      
-      // Light up the edge currently being evaluated
       pushStep(`Node ${u} checking edge to ${v}...`, u, edgeStr);
 
-      if (visited[v] === 'VISITING') {
+      // 3. Cycle Check: Is the neighbor currently in our active stack?
+      if (state[v] === 'VISITING') {
         hasCycle = true;
         cycleEdges.push(edgeStr);
-        pushStep(`Cycle detected traversing ${u} → ${v}! Graph is not a DAG.`, u, edgeStr);
+        pushStep(`🚨 Cycle detected traversing ${u} → ${v}! Neighbor is currently VISITING. Graph is not a DAG.`, u, edgeStr);
         return;
       }
       
-      if (visited[v] === 'UNVISITED') {
+      // 4. Normal Traversal
+      if (state[v] === 'UNVISITED') {
         treeEdges.push(edgeStr);
         dfs(v);
-      } else if (visited[v] === 'VISITED') {
+      } else if (state[v] === 'VISITED') {
+        // Safe cross-edge to a fully processed node
         skippedEdges.push(edgeStr);
-        pushStep(`Neighbor ${v} is already Visited. Skipping edge.`, u, edgeStr);
+        pushStep(`Neighbor ${v} is already VISITED. Safe cross-edge, skipping.`, u, edgeStr);
       }
     }
 
     if (hasCycle) return;
 
-    visited[u] = 'VISITED';
+    // 5. Node fully explored. Remove from active stack and add to result.
+    state[u] = 'VISITED';
     callStack.pop();
     result.unshift(u); 
-    pushStep(`Finished Node ${u}. Marked as Visited. Prepended to final order.`, u);
+    pushStep(`Finished Node ${u}. All neighbors explored. Marked as VISITED and prepended to final order.`, u);
   };
 
+  // 6. Initiate DFS from every unvisited node
   for (let n of nodes) {
-    if (visited[n.id] === 'UNVISITED' && !hasCycle) {
-      pushStep(`Starting DFS from Unvisited Node ${n.id}.`, n.id);
+    if (state[n.id] === 'UNVISITED' && !hasCycle) {
+      pushStep(`Starting DFS from unvisited node ${n.id}.`, n.id);
       dfs(n.id);
     }
   }
@@ -305,7 +310,6 @@ export default function TopologicalSortVisualizer() {
               
               const edgeStr = `${e.from}-${e.to}`;
               
-              // Edge State Calculation
               let strokeColor = '#9CA3AF';
               let strokeWidth = "2";
               let isDashed = false;
@@ -330,7 +334,7 @@ export default function TopologicalSortVisualizer() {
                   marker = 'arrowhead-active';
                 } else if (currentStep.cycleEdges?.includes(edgeStr)) {
                   strokeColor = '#EF4444'; // Red Cycle
-                  strokeWidth = "3";
+                  strokeWidth = "4";
                   marker = 'arrowhead-processed';
                 } else if (currentStep.treeEdges?.includes(edgeStr)) {
                   strokeColor = '#3B82F6'; // Blue Tree Traversal
@@ -368,8 +372,10 @@ export default function TopologicalSortVisualizer() {
                  if (currentStep.result?.includes(n.id)) { bgColor = '#D1FAE5'; borderColor = '#10B981'; } 
                  if (currentStep.activeNode === n.id) { bgColor = '#FEF08A'; borderColor = '#EAB308'; } 
               } else {
-                 if (currentStep.visited?.[n.id] === 'VISITED') { bgColor = '#D1FAE5'; borderColor = '#10B981'; }
-                 if (currentStep.visited?.[n.id] === 'VISITING') { bgColor = '#DBEAFE'; borderColor = '#3B82F6'; }
+                 if (currentStep.visited?.[n.id] === 'VISITED') { bgColor = '#D1FAE5'; borderColor = '#10B981'; } // Green
+                 else if (currentStep.visited?.[n.id] === 'VISITING') { bgColor = '#DBEAFE'; borderColor = '#3B82F6'; } // Blue
+                 
+                 // Active node (yellow overrides others for the current step)
                  if (currentStep.activeNode === n.id) { bgColor = '#FEF08A'; borderColor = '#EAB308'; }
               }
 
@@ -452,7 +458,7 @@ export default function TopologicalSortVisualizer() {
           ) : (
             <div className="space-y-6">
               <div>
-                <h3 className="text-sm font-bold text-gray-500 uppercase mb-2">Call Stack</h3>
+                <h3 className="text-sm font-bold text-gray-500 uppercase mb-2">Call Stack (VISITING)</h3>
                 <div className="flex flex-col-reverse gap-1 min-h-[40px] p-2 bg-white rounded border border-gray-200 shadow-inner">
                    {currentStep.callStack?.length === 0 ? <span className="text-gray-400 italic text-sm">Empty</span> : null}
                    {currentStep.callStack?.map((n, i) => (
@@ -461,7 +467,7 @@ export default function TopologicalSortVisualizer() {
                 </div>
               </div>
               <div>
-                <h3 className="text-sm font-bold text-gray-500 uppercase mb-2">Topological Order (Prepended Result)</h3>
+                <h3 className="text-sm font-bold text-gray-500 uppercase mb-2">Topological Order (VISITED)</h3>
                 <div className="flex flex-wrap gap-2 min-h-[40px] p-2 bg-white rounded border border-gray-200 shadow-inner">
                   {currentStep.result?.length === 0 ? <span className="text-gray-400 italic">Empty</span> : null}
                   {currentStep.result?.map((n, i) => (
