@@ -1,5 +1,29 @@
 import React, { useState, useEffect } from 'react';
 
+// --- Pseudocode Definitions ---
+const KAHN_CODE = [
+  "indegree[v] = 0; queue <- {v: deg=0}", 
+  "while queue ≠ ∅:",                     
+  "  u = queue.pop()",                    
+  "  result.add(u)",                      
+  "  for v in adj[u]:",                   
+  "    deg[v]--",                         
+  "    if deg[v] == 0:",                  
+  "      queue.add(v)"                    
+];
+
+const DFS_CODE = [
+  "stack = []; visited = {}",             
+  "def dfs(u):",                          
+  "  visited[u] = GRAY",                  
+  "  for v in adj[u]:",                   
+  "    if visited[v] == GRAY: abort()",   
+  "    if visited[v] == WHITE:",          
+  "      dfs(v)",                         
+  "  visited[u] = BLACK",                 
+  "  stack.push(u)"                       
+];
+
 // --- Graph Data Structures & Algorithms ---
 
 const generateKahnsSteps = (nodes, edges) => {
@@ -21,7 +45,7 @@ const generateKahnsSteps = (nodes, edges) => {
   const result = [];
   let processedEdges = [];
 
-  const pushStep = (msg, activeNode = null, activeEdge = null) => {
+  const pushStep = (msg, activeNode = null, activeEdge = null, codeLine = null) => {
     steps.push({
       msg,
       queue: [...queue],
@@ -29,53 +53,56 @@ const generateKahnsSteps = (nodes, edges) => {
       result: [...result],
       processedEdges: [...processedEdges],
       activeNode,
-      activeEdge
+      activeEdge,
+      codeLine
     });
   };
 
-  pushStep('Initialized in-degrees. Nodes with in-degree 0 are added to the Queue.');
+  pushStep('Initialized in-degrees. Nodes with in-degree 0 are added to the Queue.', null, null, 0);
 
   while (queue.length > 0) {
+    pushStep('Checking if queue is empty...', null, null, 1);
+    
     const u = queue.shift();
+    pushStep(`Dequeued Node ${u}.`, u, null, 2);
+    
     result.push(u);
-    pushStep(`Dequeued Node ${u}. Adding it to the topological order.`, u);
+    pushStep(`Added ${u} to the topological order.`, u, null, 3);
 
+    pushStep(`Preparing to check neighbors of ${u}...`, u, null, 4);
     for (let v of adj[u]) {
       const edgeStr = `${u}-${v}`;
-      
-      pushStep(`Evaluating edge ${u} → ${v}...`, u, edgeStr);
+      pushStep(`Evaluating edge ${u} → ${v}...`, u, edgeStr, 4);
       
       inDegree[v]--;
       processedEdges.push(edgeStr);
-      
-      pushStep(`Removed edge ${u} → ${v}. Decremented in-degree of ${v} to ${inDegree[v]}.`, u);
+      pushStep(`Removed edge ${u} → ${v}. Decremented in-degree of ${v} to ${inDegree[v]}.`, u, null, 5);
 
+      pushStep(`Checking if in-degree of ${v} is 0.`, u, null, 6);
       if (inDegree[v] === 0) {
         queue.push(v);
-        pushStep(`Node ${v} now has an in-degree of 0. Adding to Queue.`, u);
+        pushStep(`Node ${v} now has an in-degree of 0. Adding to Queue.`, u, null, 7);
       }
     }
   }
 
   if (result.length !== nodes.length) {
-    pushStep('Cycle detected! The graph is not a valid DAG. Topological Sort failed.');
+    pushStep('Cycle detected! The graph is not a valid DAG. Topological Sort failed.', null, null, null);
   } else {
-    pushStep('Kahn\'s Algorithm complete! All nodes processed.');
+    pushStep('Kahn\'s Algorithm complete! All nodes processed.', null, null, null);
   }
 
   return steps;
 };
 
-// --- The 3-State DFS Implementation ---
 const generateDFSSteps = (nodes, edges) => {
   const steps = [];
   const adj = {};
   nodes.forEach(n => adj[n.id] = []);
   edges.forEach(e => adj[e.from].push(e.to));
 
-  // 1. Initialize the State Tracker (UNVISITED, VISITING, VISITED)
   const state = {}; 
-  nodes.forEach(n => state[n.id] = 'UNVISITED');
+  nodes.forEach(n => state[n.id] = 'UNVISITED'); 
   
   const result = [];
   const callStack = [];
@@ -85,72 +112,75 @@ const generateDFSSteps = (nodes, edges) => {
   const cycleEdges = [];    
   let hasCycle = false;
 
-  const pushStep = (msg, activeNode = null, activeEdge = null) => {
+  const pushStep = (msg, activeNode = null, activeEdge = null, codeLine = null) => {
     steps.push({
       msg,
-      visited: { ...state }, // Pass the 3 states to the UI
+      visited: { ...state }, 
       result: [...result],
       callStack: [...callStack],
       treeEdges: [...treeEdges],
       skippedEdges: [...skippedEdges],
       cycleEdges: [...cycleEdges],
       activeNode,
-      activeEdge
+      activeEdge,
+      codeLine
     });
   };
 
-  pushStep('Initialized all nodes as UNVISITED.');
+  pushStep('Initialized all nodes as UNVISITED (White).', null, null, 0);
 
   const dfs = (u) => {
     if (hasCycle) return;
     
-    // 2. Mark node as VISITING (in active call stack)
-    state[u] = 'VISITING';
-    callStack.push(u);
-    pushStep(`Visiting Node ${u}. Marked as VISITING (Added to active Call Stack).`, u);
+    pushStep(`Entering dfs(${u})`, u, null, 1);
 
+    state[u] = 'VISITING'; 
+    callStack.push(u);
+    pushStep(`Visiting Node ${u}. Marked as VISITING (GRAY). added to active Call Stack.`, u, null, 2);
+
+    pushStep(`Preparing to check neighbors of ${u}...`, u, null, 3);
     for (let v of adj[u]) {
       const edgeStr = `${u}-${v}`;
-      pushStep(`Node ${u} checking edge to ${v}...`, u, edgeStr);
+      pushStep(`Node ${u} checking edge to ${v}...`, u, edgeStr, 3);
 
-      // 3. Cycle Check: Is the neighbor currently in our active stack?
+      pushStep(`Checking if neighbor ${v} is already GRAY (currently visiting)...`, u, edgeStr, 4);
       if (state[v] === 'VISITING') {
         hasCycle = true;
         cycleEdges.push(edgeStr);
-        pushStep(`🚨 Cycle detected traversing ${u} → ${v}! Neighbor is currently VISITING. Graph is not a DAG.`, u, edgeStr);
+        pushStep(`🚨 Cycle detected traversing ${u} → ${v}! Neighbor is GRAY. Aborting.`, u, edgeStr, 4);
         return;
       }
       
-      // 4. Normal Traversal
+      pushStep(`Checking if neighbor ${v} is WHITE (unvisited)...`, u, edgeStr, 5);
       if (state[v] === 'UNVISITED') {
         treeEdges.push(edgeStr);
+        pushStep(`Neighbor ${v} is WHITE. Traversing deeper.`, u, edgeStr, 6);
         dfs(v);
       } else if (state[v] === 'VISITED') {
-        // Safe cross-edge to a fully processed node
         skippedEdges.push(edgeStr);
-        pushStep(`Neighbor ${v} is already VISITED. Safe cross-edge, skipping.`, u, edgeStr);
+        pushStep(`Neighbor ${v} is BLACK (already fully visited). Skipping cross-edge.`, u, edgeStr, 3);
       }
     }
 
     if (hasCycle) return;
 
-    // 5. Node fully explored. Remove from active stack and add to result.
-    state[u] = 'VISITED';
+    state[u] = 'VISITED'; 
     callStack.pop();
+    pushStep(`Finished Node ${u}. All neighbors explored. Marked as VISITED (BLACK).`, u, null, 7);
+    
     result.unshift(u); 
-    pushStep(`Finished Node ${u}. All neighbors explored. Marked as VISITED and prepended to final order.`, u);
+    pushStep(`Pushed ${u} to final stack (prepended to topological order).`, u, null, 8);
   };
 
-  // 6. Initiate DFS from every unvisited node
   for (let n of nodes) {
     if (state[n.id] === 'UNVISITED' && !hasCycle) {
-      pushStep(`Starting DFS from unvisited node ${n.id}.`, n.id);
+      pushStep(`Starting DFS from unvisited node ${n.id}.`, n.id, null, null);
       dfs(n.id);
     }
   }
 
   if (!hasCycle) {
-    pushStep('DFS Complete! The topological order is ready.');
+    pushStep('DFS Complete! The topological order is ready.', null, null, null);
   }
 
   return steps;
@@ -171,6 +201,8 @@ export default function TopologicalSortVisualizer() {
   const [stepIdx, setStepIdx] = useState(-1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1000);
+  
+  const [isDark, setIsDark] = useState(false);
 
   useEffect(() => {
     setIsPlaying(false);
@@ -260,29 +292,44 @@ export default function TopologicalSortVisualizer() {
   };
 
   const currentStep = steps[stepIdx] || {};
+  const currentCode = algo === 'KAHN' ? KAHN_CODE : DFS_CODE;
+  
+  // Logic to determine if the algorithm has finished
+  const isFinished = steps.length > 0 && stepIdx >= steps.length - 1;
 
   let canvasCursor = 'cursor-default';
   if (mode === 'ADD_NODE') canvasCursor = 'cursor-crosshair';
   if (mode === 'MOVE') canvasCursor = draggedNode ? 'cursor-grabbing' : 'cursor-grab';
 
+  const bgMain = isDark ? 'bg-gray-900 text-gray-200' : 'bg-gray-50 text-gray-800';
+  const bgPanel = isDark ? 'bg-gray-800' : 'bg-white';
+  const borderCol = isDark ? 'border-gray-700' : 'border-gray-200';
+  const textMuted = isDark ? 'text-gray-400' : 'text-gray-500';
+  const btnOutline = isDark ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-gray-200 hover:bg-gray-300 text-gray-800';
+
   return (
-    <div className="flex h-screen bg-gray-50 text-gray-800 font-sans">
-      <div className="flex-1 flex flex-col border-r border-gray-200">
-        <div className="p-4 bg-white border-b border-gray-200 flex justify-between items-center shadow-sm z-10">
+    <div className={`flex h-screen font-sans ${bgMain}`}>
+      {/* LEFT PANEL */}
+      <div className={`flex-1 flex flex-col border-r ${borderCol}`}>
+        <div className={`p-4 border-b flex justify-between items-center shadow-sm z-10 ${bgPanel} ${borderCol}`}>
           <div className="flex gap-2">
-            <button onClick={() => setMode('MOVE')} className={`px-3 py-1 rounded-md text-sm font-medium transition ${mode === 'MOVE' ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>Move</button>
-            <button onClick={() => setMode('ADD_NODE')} className={`px-3 py-1 rounded-md text-sm font-medium transition ${mode === 'ADD_NODE' ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>+ Node</button>
-            <button onClick={() => setMode('ADD_EDGE')} className={`px-3 py-1 rounded-md text-sm font-medium transition ${mode === 'ADD_EDGE' ? 'bg-blue-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>→ Edge</button>
-            <button onClick={() => setMode('DELETE')} className={`px-3 py-1 rounded-md text-sm font-medium transition ${mode === 'DELETE' ? 'bg-red-600 text-white' : 'bg-gray-200 hover:bg-gray-300'}`}>Delete</button>
+            <button onClick={() => setMode('MOVE')} className={`px-3 py-1 rounded-md text-sm font-medium transition ${mode === 'MOVE' ? 'bg-blue-600 text-white' : btnOutline}`}>Move</button>
+            <button onClick={() => setMode('ADD_NODE')} className={`px-3 py-1 rounded-md text-sm font-medium transition ${mode === 'ADD_NODE' ? 'bg-blue-600 text-white' : btnOutline}`}>+ Node</button>
+            <button onClick={() => setMode('ADD_EDGE')} className={`px-3 py-1 rounded-md text-sm font-medium transition ${mode === 'ADD_EDGE' ? 'bg-blue-600 text-white' : btnOutline}`}>→ Edge</button>
+            <button onClick={() => setMode('DELETE')} className={`px-3 py-1 rounded-md text-sm font-medium transition ${mode === 'DELETE' ? 'bg-red-600 text-white' : btnOutline}`}>Delete</button>
           </div>
-          <div className="flex gap-2 items-center">
-            <span className="text-xs text-gray-400 italic mr-4">Double-click a node to rename</span>
-            <button onClick={() => { setNodes([]); setEdges([]); }} className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded-md text-sm font-medium">Clear All</button>
+          <div className="flex gap-4 items-center">
+            <span className={`text-xs italic ${isDark ? 'text-gray-400' : 'text-gray-400'}`}>Double-click node to rename</span>
+            <button onClick={() => { setNodes([]); setEdges([]); }} className={`px-3 py-1 rounded-md text-sm font-medium ${btnOutline}`}>Clear All</button>
+            
+            <button onClick={() => setIsDark(!isDark)} className={`px-3 py-1 rounded-md text-sm font-medium border ${isDark ? 'border-gray-600 bg-gray-900 text-yellow-300' : 'border-gray-300 bg-white text-gray-800'}`}>
+              {isDark ? '☀️ Light' : '🌙 Dark'}
+            </button>
           </div>
         </div>
 
         <div 
-          className={`flex-1 overflow-hidden relative bg-white ${canvasCursor}`} 
+          className={`flex-1 overflow-hidden relative ${canvasCursor} ${isDark ? 'bg-gray-900' : 'bg-white'}`} 
           onClick={handleCanvasClick}
           onMouseMove={handleCanvasMouseMove}
           onMouseUp={handleCanvasMouseUp}
@@ -291,7 +338,7 @@ export default function TopologicalSortVisualizer() {
           <svg className="w-full h-full absolute inset-0">
             <defs>
               <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="28" refY="3.5" orient="auto">
-                <polygon points="0 0, 10 3.5, 0 7" fill="#9CA3AF" />
+                <polygon points="0 0, 10 3.5, 0 7" fill={isDark ? '#6B7280' : '#9CA3AF'} />
               </marker>
               <marker id="arrowhead-processed" markerWidth="10" markerHeight="7" refX="28" refY="3.5" orient="auto">
                 <polygon points="0 0, 10 3.5, 0 7" fill="#EF4444" />
@@ -310,7 +357,7 @@ export default function TopologicalSortVisualizer() {
               
               const edgeStr = `${e.from}-${e.to}`;
               
-              let strokeColor = '#9CA3AF';
+              let strokeColor = isDark ? '#4B5563' : '#9CA3AF';
               let strokeWidth = "2";
               let isDashed = false;
               let marker = 'arrowhead';
@@ -319,29 +366,29 @@ export default function TopologicalSortVisualizer() {
 
               if (algo === 'KAHN') {
                 if (isActiveEdge) {
-                  strokeColor = '#F59E0B'; // Amber
+                  strokeColor = '#F59E0B'; 
                   strokeWidth = "4";
                   marker = 'arrowhead-active';
                 } else if (currentStep.processedEdges?.includes(edgeStr)) {
-                  strokeColor = '#EF4444'; // Red
+                  strokeColor = '#EF4444'; 
                   isDashed = true;
                   marker = 'arrowhead-processed';
                 }
               } else {
                 if (isActiveEdge) {
-                  strokeColor = '#F59E0B'; // Amber
+                  strokeColor = '#F59E0B'; 
                   strokeWidth = "4";
                   marker = 'arrowhead-active';
                 } else if (currentStep.cycleEdges?.includes(edgeStr)) {
-                  strokeColor = '#EF4444'; // Red Cycle
+                  strokeColor = '#EF4444'; 
                   strokeWidth = "4";
                   marker = 'arrowhead-processed';
                 } else if (currentStep.treeEdges?.includes(edgeStr)) {
-                  strokeColor = '#3B82F6'; // Blue Tree Traversal
+                  strokeColor = '#3B82F6'; 
                   strokeWidth = "3";
                   marker = 'arrowhead-tree';
                 } else if (currentStep.skippedEdges?.includes(edgeStr)) {
-                  strokeColor = '#9CA3AF'; // Gray Skipped
+                  strokeColor = isDark ? '#4B5563' : '#9CA3AF'; 
                   isDashed = true;
                 }
               }
@@ -365,21 +412,20 @@ export default function TopologicalSortVisualizer() {
               );
             })}
             {nodes.map((n, i) => {
-              let bgColor = '#FFFFFF';
-              let borderColor = '#3B82F6';
+              let bgColor = isDark ? '#1F2937' : '#FFFFFF';
+              let borderColor = isDark ? '#60A5FA' : '#3B82F6';
               
               if (algo === 'KAHN') {
-                 if (currentStep.result?.includes(n.id)) { bgColor = '#D1FAE5'; borderColor = '#10B981'; } 
-                 if (currentStep.activeNode === n.id) { bgColor = '#FEF08A'; borderColor = '#EAB308'; } 
+                 if (currentStep.result?.includes(n.id)) { bgColor = isDark ? '#065F46' : '#D1FAE5'; borderColor = '#10B981'; } 
+                 if (currentStep.activeNode === n.id) { bgColor = isDark ? '#854D0E' : '#FEF08A'; borderColor = '#EAB308'; } 
               } else {
-                 if (currentStep.visited?.[n.id] === 'VISITED') { bgColor = '#D1FAE5'; borderColor = '#10B981'; } // Green
-                 else if (currentStep.visited?.[n.id] === 'VISITING') { bgColor = '#DBEAFE'; borderColor = '#3B82F6'; } // Blue
+                 if (currentStep.visited?.[n.id] === 'VISITED') { bgColor = isDark ? '#065F46' : '#D1FAE5'; borderColor = '#10B981'; } 
+                 else if (currentStep.visited?.[n.id] === 'VISITING') { bgColor = isDark ? '#1E3A8A' : '#DBEAFE'; borderColor = '#3B82F6'; } 
                  
-                 // Active node (yellow overrides others for the current step)
-                 if (currentStep.activeNode === n.id) { bgColor = '#FEF08A'; borderColor = '#EAB308'; }
+                 if (currentStep.activeNode === n.id) { bgColor = isDark ? '#854D0E' : '#FEF08A'; borderColor = '#EAB308'; }
               }
 
-              if (selectedNode === n.id) { borderColor = '#EF4444'; bgColor = '#FEE2E2'; }
+              if (selectedNode === n.id) { borderColor = '#EF4444'; bgColor = isDark ? '#7F1D1D' : '#FEE2E2'; }
 
               return (
                 <g 
@@ -391,7 +437,7 @@ export default function TopologicalSortVisualizer() {
                   className={`${mode === 'MOVE' ? (draggedNode === n.id ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-pointer'} ${mode === 'DELETE' ? 'hover:opacity-75' : ''}`}
                 >
                   <circle r="20" fill={bgColor} stroke={borderColor} strokeWidth="3" className="transition-all duration-300" />
-                  <text textAnchor="middle" dy=".3em" className="text-sm font-bold fill-gray-800 pointer-events-none select-none">{n.id}</text>
+                  <text textAnchor="middle" dy=".3em" className={`text-sm font-bold pointer-events-none select-none ${isDark ? 'fill-gray-100' : 'fill-gray-800'}`}>{n.id}</text>
                   
                   {algo === 'KAHN' && currentStep.inDegree && currentStep.inDegree[n.id] !== undefined && (
                     <g transform="translate(15, -15)">
@@ -406,72 +452,103 @@ export default function TopologicalSortVisualizer() {
         </div>
       </div>
 
-      <div className="w-1/3 bg-white flex flex-col shadow-lg z-20">
-        <div className="p-6 border-b border-gray-200">
-          <h2 className="text-xl font-bold mb-4">Algorithm Controls</h2>
-          
-          <div className="flex bg-gray-100 rounded-lg p-1 mb-4">
-            <button onClick={() => setAlgo('KAHN')} className={`flex-1 py-1 rounded-md text-sm font-medium ${algo === 'KAHN' ? 'bg-white shadow' : 'text-gray-500'}`}>Kahn's (BFS)</button>
-            <button onClick={() => setAlgo('DFS')} className={`flex-1 py-1 rounded-md text-sm font-medium ${algo === 'DFS' ? 'bg-white shadow' : 'text-gray-500'}`}>Depth-First Search</button>
+      {/* RIGHT PANEL */}
+      <div className={`w-[450px] flex flex-col shadow-lg z-20 ${bgPanel}`}>
+        
+        {/* Controls */}
+        <div className={`p-5 border-b ${borderCol}`}>
+          <div className={`flex rounded-lg p-1 mb-4 ${isDark ? 'bg-gray-900' : 'bg-gray-100'}`}>
+            <button onClick={() => setAlgo('KAHN')} className={`flex-1 py-1 rounded-md text-sm font-medium ${algo === 'KAHN' ? (isDark ? 'bg-gray-700 text-white shadow' : 'bg-white shadow text-gray-800') : textMuted}`}>Kahn's (BFS)</button>
+            <button onClick={() => setAlgo('DFS')} className={`flex-1 py-1 rounded-md text-sm font-medium ${algo === 'DFS' ? (isDark ? 'bg-gray-700 text-white shadow' : 'bg-white shadow text-gray-800') : textMuted}`}>Depth-First Search</button>
           </div>
 
-          <div className="flex items-center gap-2 mb-4">
-            <button onClick={() => setStepIdx(0)} disabled={stepIdx === 0} className="px-3 py-2 bg-gray-200 rounded disabled:opacity-50">⏮</button>
-            <button onClick={() => setStepIdx(s => Math.max(0, s - 1))} disabled={stepIdx === 0} className="px-3 py-2 bg-gray-200 rounded disabled:opacity-50">◀</button>
-            <button onClick={() => setIsPlaying(!isPlaying)} className="flex-1 py-2 bg-blue-600 text-white font-bold rounded shadow-sm hover:bg-blue-700">{isPlaying ? 'Pause' : 'Play'}</button>
-            <button onClick={() => setStepIdx(s => Math.min(steps.length - 1, s + 1))} disabled={stepIdx === steps.length - 1} className="px-3 py-2 bg-gray-200 rounded disabled:opacity-50">▶</button>
+          <div className="flex items-center gap-2 mb-3">
+            <button onClick={() => setStepIdx(0)} disabled={stepIdx === 0} className={`px-3 py-2 rounded disabled:opacity-50 ${btnOutline}`}>⏮</button>
+            <button onClick={() => setStepIdx(s => Math.max(0, s - 1))} disabled={stepIdx === 0} className={`px-3 py-2 rounded disabled:opacity-50 ${btnOutline}`}>◀</button>
+            <button 
+              onClick={() => {
+                if (isFinished) {
+                  setStepIdx(0);
+                  setIsPlaying(true);
+                } else {
+                  setIsPlaying(!isPlaying);
+                }
+              }} 
+              className="flex-1 py-2 bg-blue-600 text-white font-bold rounded shadow-sm hover:bg-blue-700"
+            >
+              {isPlaying ? 'Pause' : (isFinished ? 'Replay' : 'Play')}
+            </button>
+            <button onClick={() => setStepIdx(s => Math.min(steps.length - 1, s + 1))} disabled={stepIdx === steps.length - 1} className={`px-3 py-2 rounded disabled:opacity-50 ${btnOutline}`}>▶</button>
           </div>
 
-          <div className="flex items-center gap-4 text-sm text-gray-600">
+          <div className={`flex items-center gap-4 text-sm ${textMuted}`}>
             <span>Speed:</span>
             <input type="range" min="200" max="2000" step="100" value={2200 - speed} onChange={(e) => setSpeed(2200 - parseInt(e.target.value))} className="flex-1" />
           </div>
         </div>
 
-        <div className="p-6 bg-blue-50 border-b border-blue-100 min-h-[120px]">
-          <h3 className="text-sm font-bold text-blue-800 uppercase tracking-wider mb-2">Current Step Analysis</h3>
-          <p className="text-gray-800 text-md leading-relaxed">{currentStep.msg || "Edit the graph or press play to begin."}</p>
+        {/* Step Text Explanation */}
+        <div className={`p-5 border-b min-h-[90px] flex items-center ${isDark ? 'bg-blue-950 border-blue-900 text-blue-100' : 'bg-blue-50 border-blue-100 text-gray-800'}`}>
+          <p className="text-sm font-medium leading-relaxed">{currentStep.msg || "Edit the graph or press play to begin."}</p>
         </div>
 
-        <div className="flex-1 p-6 overflow-y-auto bg-gray-50">
+        {/* Interactive Pseudocode Block */}
+        <div className={`p-4 font-mono text-sm border-b shadow-inner ${isDark ? 'bg-black text-blue-400 border-gray-900' : 'bg-gray-900 text-blue-300 border-gray-800'}`}>
+          <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-3">Algorithm execution</h3>
+          <div className="space-y-1">
+            {currentCode.map((line, idx) => (
+              <div 
+                key={idx} 
+                className={`px-2 py-1 rounded transition-colors duration-200 ${
+                  currentStep.codeLine === idx ? 'bg-blue-600 text-white font-bold shadow-md' : (isDark ? 'text-gray-500' : 'text-gray-400')
+                }`}
+              >
+                <pre className="m-0 bg-transparent">{line}</pre>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Data Structures State */}
+        <div className={`flex-1 p-5 overflow-y-auto ${isDark ? 'bg-gray-900' : 'bg-gray-50'}`}>
           {algo === 'KAHN' ? (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <h3 className="text-sm font-bold text-gray-500 uppercase mb-2">Queue</h3>
-                <div className="flex flex-wrap gap-2 min-h-[40px] p-2 bg-white rounded border border-gray-200 shadow-inner">
-                  {currentStep.queue?.length === 0 ? <span className="text-gray-400 italic">Empty</span> : null}
+                <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Queue</h3>
+                <div className={`flex flex-wrap gap-2 min-h-[40px] p-2 rounded border shadow-inner ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                  {currentStep.queue?.length === 0 ? <span className="text-gray-500 italic text-sm">Empty</span> : null}
                   {currentStep.queue?.map((n, i) => (
-                    <span key={i} className="px-3 py-1 bg-yellow-100 border border-yellow-300 rounded font-mono text-sm">{n}</span>
+                    <span key={i} className={`px-3 py-1 font-bold rounded font-mono text-sm border ${isDark ? 'bg-yellow-900/50 text-yellow-200 border-yellow-700' : 'bg-yellow-100 text-yellow-800 border-yellow-300'}`}>{n}</span>
                   ))}
                 </div>
               </div>
               <div>
-                <h3 className="text-sm font-bold text-gray-500 uppercase mb-2">Topological Order (Result)</h3>
-                <div className="flex flex-wrap gap-2 min-h-[40px] p-2 bg-white rounded border border-gray-200 shadow-inner">
-                  {currentStep.result?.length === 0 ? <span className="text-gray-400 italic">Empty</span> : null}
+                <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Topological Order (Result)</h3>
+                <div className={`flex flex-wrap gap-2 min-h-[40px] p-2 rounded border shadow-inner ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                  {currentStep.result?.length === 0 ? <span className="text-gray-500 italic text-sm">Empty</span> : null}
                   {currentStep.result?.map((n, i) => (
-                    <span key={i} className="px-3 py-1 bg-green-100 border border-green-300 rounded font-mono text-sm">{n}</span>
+                    <span key={i} className={`px-3 py-1 font-bold rounded font-mono text-sm border ${isDark ? 'bg-green-900/50 text-green-300 border-green-700' : 'bg-green-100 text-green-800 border-green-300'}`}>{n}</span>
                   ))}
                 </div>
               </div>
             </div>
           ) : (
-            <div className="space-y-6">
+            <div className="space-y-5">
               <div>
-                <h3 className="text-sm font-bold text-gray-500 uppercase mb-2">Call Stack (VISITING)</h3>
-                <div className="flex flex-col-reverse gap-1 min-h-[40px] p-2 bg-white rounded border border-gray-200 shadow-inner">
-                   {currentStep.callStack?.length === 0 ? <span className="text-gray-400 italic text-sm">Empty</span> : null}
+                <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Call Stack (GRAY)</h3>
+                <div className={`flex flex-col-reverse gap-1 min-h-[40px] p-2 rounded border shadow-inner ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                   {currentStep.callStack?.length === 0 ? <span className="text-gray-500 italic text-sm">Empty</span> : null}
                    {currentStep.callStack?.map((n, i) => (
-                    <div key={i} className="px-3 py-1 bg-blue-100 border border-blue-300 rounded font-mono text-sm text-center">{n}</div>
+                    <div key={i} className={`px-3 py-1 font-bold rounded font-mono text-sm text-center border ${isDark ? 'bg-blue-900/50 text-blue-300 border-blue-700' : 'bg-blue-100 text-blue-800 border-blue-300'}`}>{n}</div>
                   ))}
                 </div>
               </div>
               <div>
-                <h3 className="text-sm font-bold text-gray-500 uppercase mb-2">Topological Order (VISITED)</h3>
-                <div className="flex flex-wrap gap-2 min-h-[40px] p-2 bg-white rounded border border-gray-200 shadow-inner">
-                  {currentStep.result?.length === 0 ? <span className="text-gray-400 italic">Empty</span> : null}
+                <h3 className="text-xs font-bold text-gray-500 uppercase mb-2">Topological Stack (BLACK)</h3>
+                <div className={`flex flex-wrap gap-2 min-h-[40px] p-2 rounded border shadow-inner ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                  {currentStep.result?.length === 0 ? <span className="text-gray-500 italic text-sm">Empty</span> : null}
                   {currentStep.result?.map((n, i) => (
-                    <span key={i} className="px-3 py-1 bg-green-100 border border-green-300 rounded font-mono text-sm">{n}</span>
+                    <span key={i} className={`px-3 py-1 font-bold rounded font-mono text-sm border ${isDark ? 'bg-green-900/50 text-green-300 border-green-700' : 'bg-green-100 text-green-800 border-green-300'}`}>{n}</span>
                   ))}
                 </div>
               </div>
